@@ -1,0 +1,59 @@
+{
+   "abstract" : "Auto handling of Devel::NYTProf in your Mojolicious app",
+   "author" : [
+      "Lee Johnson <leejo@cpan.org>"
+   ],
+   "dynamic_config" : 1,
+   "generated_by" : "ExtUtils::MakeMaker version 6.8, CPAN::Meta::Converter version 2.132830",
+   "license" : [
+      "perl_5"
+   ],
+   "meta-spec" : {
+      "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
+      "version" : "2"
+   },
+   "name" : "Mojolicious-Plugin-NYTProf",
+   "no_index" : {
+      "directory" : [
+         "t",
+         "inc"
+      ]
+   },
+   "prereqs" : {
+      "build" : {
+         "requires" : {
+            "Test::Exception" : "0.32",
+            "Test::More" : "0"
+         }
+      },
+      "configure" : {
+         "requires" : {
+            "ExtUtils::MakeMaker" : "0"
+         }
+      },
+      "runtime" : {
+         "requires" : {
+            "Devel::NYTProf" : "5.06",
+            "File::Spec::Functions" : "3.30",
+            "File::Temp" : "0.22",
+            "File::Which" : "1.09",
+            "Mojolicious" : "4.24",
+            "Time::HiRes" : "1.9719"
+         }
+      }
+   },
+   "release_status" : "stable",
+   "resources" : {
+      "bugtracker" : {
+         "web" : "https://github.com/leejo/mojolicious-plugin-nytprof/issues"
+      },
+      "homepage" : "https://metacpan.org/module/Mojolicious::Plugin::NYTProf",
+      "license" : [
+         "http://dev.perl.org/licenses/"
+      ],
+      "repository" : {
+         "url" : "https://github.com/leejo/mojolicious-plugin-nytprof"
+      }
+   },
+   "version" : "0.01"
+}
