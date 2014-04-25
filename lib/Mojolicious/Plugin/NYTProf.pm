@@ -6,7 +6,7 @@ Mojolicious::Plugin::NYTProf - Auto handling of Devel::NYTProf in your Mojolicio
 
 =head1 VERSION
 
-0.04
+0.05
 
 =head1 DESCRIPTION
 
@@ -20,10 +20,7 @@ L<Dancer::Plugin::NYTProf>
 
   plugin NYTProf => {
     nytprof => {
-      # optional, will default to nytprof
-      profiles_dir     => '/some_tmp_dir/',
-      # optional
-      nytprofhtml_path => '/path/to/nytprofhtml',
+      ... # see CONFIGURATION
     },
   };
 
@@ -41,7 +38,6 @@ Or
     ...
 
     my $mojo_config = $self->plugin('Config');
-    # where config contains the necessary keys as show above
     $self->plugin(NYTProf => $mojo_config);
   }
 
@@ -59,7 +55,7 @@ use File::Temp;
 use File::Which;
 use File::Spec::Functions qw/catfile catdir/;
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 =head1 METHODS
 
@@ -72,22 +68,71 @@ key exists in your config hash
 
 =head1 HOOKS AND Devel::NYTProf
 
-When the nytprof key is missing from your config (or commented out) none of the
-nytprof routes will be loaded and the Devel::NYTProf module will not be imported.
-
 The plugin adds hooks to control the level of profiling, Devel::NYTProf profiling
 is started using a before_routes hook and the stopped with an after_dispatch hook.
+
 The consequence of this is that you should see profiling only for your routes and
 rendering code and will not see most of the actual Mojolicious framework detail.
+
+You can override the hooks used to control when the profiling runs, see the
+CONFIGURATION section below.
+
+=head1 CONFIGURATION
+
+Here's what you can control in myapp.conf:
+
+  {
+    # Devel::NYTProf will only be loaded, and profiling enabled, if the nytprof
+    # key is present in your config file, so either remove it or comment it out
+    # to completely disable profiling.
+    nytprof => {
+
+      # path to your nytprofhtml script (installed as part of Devel::NYTProf
+      # distribution). the plugin will do its best to try to find this so this
+      # is optional, just set if you have a none standard path
+      nytprofhtml_path => '/path/to/nytprofhtml',
+
+      # path to store Devel::NYTProf output profiles and generated html pages.
+      # options, defaults to "/path/to/your/app/root/dir/nytprof"
+      profiles_dir => '/path/to/nytprof/profiles/'
+
+      # set this to true to allow the plugin to run when in production mode
+      # the default value is 0 so you can deploy your app to prod without
+      # having to make any changes to config/plugin register
+      allow_production => 0,
+
+      # Devel::NYTProf environment options, see the documentation at
+      # https://metacpan.org/pod/Devel::NYTProf#NYTPROF-ENVIRONMENT-VARIABLE
+      # for a complete list. N.B. you can't supply start or file as these
+      # are used internally in the plugin so will be ignored if passed
+      env {
+        trace => 1,
+        log   => "/path/to/foo/",
+        ....
+      },
+
+      # when to enable Devel::NYTProf profiling - the pre_hook will run
+      # to enable_profile and the post_hook will run to disable_profile
+      # and finish_profile. the values show here are the defaults so you
+      # do not need to provide these options
+      #
+      # N.B. there is nothing stopping you reversing the order of the
+      # hooks, which would cause the Mojolicious framework code to be
+      # profiled, or providing hooks that are the same or even invalid. these
+      # config options should probably be used with some care
+      pre_hook  => 'before_routes',
+      post_hook => 'after_dispatch',
+    },
+  }
 
 =cut
 
 sub register {
   my ($self, $app, $config) = @_;
 
-  # TODO: check mode and do not enable if production (or require a force
-  # config to allow in production)
   if (my $nytprof = $config->{nytprof}) {
+
+    return if $app->mode eq 'production' and ! $nytprof->{allow_production};
 
     my $nytprofhtml_path = $nytprof->{nytprofhtml_path}
       || File::Which::which('nytprofhtml');
@@ -113,18 +158,29 @@ sub register {
       }
     }
 
-    my $tempfh = File::Temp->new(
-      ($nytprof->{profiles_dir} ? (DIR => $nytprof->{profiles_dir}) : () ),
-    );
-    my $file      = $tempfh->filename;
-    $tempfh       = undef; # let the file get deleted
+    # disable config option is undocumented, it allows testing where we
+    # don't actually load or run Devel::NYTProf
+    unless ($nytprof->{disable}) {
+      my $tempfh = File::Temp->new(
+        ($nytprof->{profiles_dir} ? (DIR => $nytprof->{profiles_dir}) : () ),
+      );
+      my $file      = $tempfh->filename;
+      $tempfh       = undef; # let the file get deleted
 
-    # TODO: allow options to be passed for values listed in
-    # https://metacpan.org/pod/Devel::NYTProf#NYTPROF-ENVIRONMENT-VARIABLE
-    $ENV{NYTPROF} = "start=no:file=$file";
+      # https://metacpan.org/pod/Devel::NYTProf#NYTPROF-ENVIRONMENT-VARIABLE
+      # options for Devel::NYTProf - any can be passed but will always set
+      # the start and file options here
+      $nytprof->{env}{start} = 'no';
+      $nytprof->{env}{file}  = $file;
 
-    require Devel::NYTProf;
-    unlink $file;
+      $ENV{NYTPROF} = join( ':',
+        map { "$_=" . $nytprof->{env}{$_} }
+          keys %{ $nytprof->{env} }
+      );
+
+      require Devel::NYTProf;
+      unlink $file;
+    }
 
     $self->_add_hooks($app, $config, $nytprofhtml_path);
   }
@@ -133,8 +189,11 @@ sub register {
 sub _add_hooks {
   my ($self, $app, $config, $nytprofhtml_path) = @_;
 
-  my $nytprof  = $config->{nytprof};
-  my $prof_dir = $nytprof->{profiles_dir} || 'nytprof';
+  my $nytprof   = $config->{nytprof};
+  my $prof_dir  = $nytprof->{profiles_dir} || 'nytprof';
+  my $pre_hook  = $nytprof->{pre_hook}     || 'before_routes';
+  my $post_hook = $nytprof->{post_hook}    || 'after_dispatch';
+  my $disable   = $nytprof->{disable}      || 0;
 
   # add the nytprof/html directory to the static paths
   # so we can serve these without having to add routes
@@ -144,22 +203,38 @@ sub _add_hooks {
   # to avoid confusion with the *dirs* in nytprof/html
   my $prof_sub_dir = catfile( $prof_dir,'profiles' );
 
-  # TODO: allow control of hooks with config variables
-  $app->hook(before_routes => sub {
-    my $c = shift;
-    my $path = $c->req->url->to_string;
+  $app->hook($pre_hook => sub {
+
+    # figure args based on what the hook is
+    my ($tx, $app, $next, $c, $path);
+
+    if ($pre_hook eq 'after_build_tx') {
+      ($tx, $app) = @_[0,1];
+      $path = $pre_hook; # TODO - need better identifier for this?
+    } elsif ($pre_hook =~ /around/) {
+      ($next, $c) = @_[0,1];
+    } else {
+      $c = $_[0];
+      $path = $c->req->url->to_string;
+      return if $c->stash->{'mojo.static'}; # static files
+    }
+
     return if $path =~ m{^/nytprof}; # viewing profiles
     $path =~ s!^/!!g;
     $path =~ s!/!-!g;
+
     my ($sec, $usec) = gettimeofday;
     DB::enable_profile(
       catfile($prof_sub_dir,"nytprof_out_${sec}_${usec}_${path}_$$")
-    );
+    ) unless $disable;
+    return $next->() if $pre_hook =~ /around/;
   });
 
-  $app->hook(after_dispatch => sub {
-    DB::disable_profile();
-    DB::finish_profile();
+  $app->hook($post_hook => sub {
+    DB::disable_profile() unless $disable;
+    DB::finish_profile() unless $disable;
+    # first arg is $next if the hook matches around
+    return shift->() if $post_hook =~ /around/;
   });
 
   $app->routes->get('/nytprof/profiles/:file'
