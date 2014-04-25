@@ -31,4 +31,4 @@ resources:
   homepage: https://metacpan.org/module/Mojolicious::Plugin::NYTProf
   license: http://dev.perl.org/licenses/
   repository: https://github.com/leejo/mojolicious-plugin-nytprof
-version: 0.05
+version: 0.06
