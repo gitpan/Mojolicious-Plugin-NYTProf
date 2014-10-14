@@ -4,9 +4,14 @@ package Mojolicious::Plugin::NYTProf;
 
 Mojolicious::Plugin::NYTProf - Auto handling of Devel::NYTProf in your Mojolicious app
 
+=for html
+
+<a href='https://travis-ci.org/leejo/mojolicious-plugin-nytprof?branch=master'><img src='https://travis-ci.org/leejo/mojolicious-plugin-nytprof.svg?branch=master' alt='Build Status' /></a>
+<a href='https://coveralls.io/r/leejo/mojolicious-plugin-nytprof?branch=master'><img src='https://coveralls.io/repos/leejo/mojolicious-plugin-nytprof/badge.png?branch=master' alt='Coverage Status' /></a>
+
 =head1 VERSION
 
-0.09
+0.10
 
 =head1 DESCRIPTION
 
@@ -55,7 +60,7 @@ use File::Temp;
 use File::Which;
 use File::Spec::Functions qw/catfile catdir/;
 
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 =head1 METHODS
 
